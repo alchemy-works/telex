@@ -3,5 +3,5 @@ module telegram.telex {
 
     requires java.net.http;
 
-    exports org.jianzhao.telex;
+    exports telex;
 }

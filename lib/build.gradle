@@ -6,7 +6,7 @@ java {
     modularity.inferModulePath = true
 }
 
-group = 'org.jianzhao'
+group = 'telex'
 
 sourceCompatibility = '11'
 targetCompatibility = '11'

@@ -1,4 +1,4 @@
-package org.jianzhao.telex;
+package telex;
 
 import org.junit.jupiter.api.Test;
 
