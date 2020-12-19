@@ -84,8 +84,13 @@ public class Telex {
         Objects.requireNonNull(payload, "payload must be not null");
         var publisher = new MultiPartBodyPublisher();
         payload.forEach((name, value) -> {
-            var addResourceToPublisher = (Consumer<Resource>) resource ->
-                    publisher.addPart(name, resource::getInputStream, resource.getFilename(), resource.getContentType());
+            var addResourceToPublisher = (Consumer<Resource>) resource -> {
+                var filePart = new MultiPartBodyPublisher.FilePartSpec();
+                filePart.setFilename(resource.getFilename());
+                filePart.setContentType(resource.getContentType());
+                filePart.setStream(resource.getInputStream());
+                publisher.addPart(name,filePart );
+            };
             if (value instanceof Path) {
                 addResourceToPublisher.accept(Resource.of((Path) value));
             } else if (value instanceof File) {
