@@ -1,7 +1,6 @@
 package telex;
 
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import telex.support.MultiPartBodyPublisher;
 
 import java.io.File;
@@ -12,12 +11,11 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Simple Telegram API wrapper
@@ -84,19 +82,12 @@ public class Telex {
         Objects.requireNonNull(payload, "payload must be not null");
         var publisher = new MultiPartBodyPublisher();
         payload.forEach((name, value) -> {
-            var addResourceToPublisher = (Consumer<Resource>) resource -> {
-                var filePart = new MultiPartBodyPublisher.FilePartSpec();
-                filePart.setFilename(resource.getFilename());
-                filePart.setContentType(resource.getContentType());
-                filePart.setStream(resource.getInputStream());
-                publisher.addPart(name,filePart );
-            };
             if (value instanceof Path) {
-                addResourceToPublisher.accept(Resource.of((Path) value));
+                publisher.addPart(name, MultiPartBodyPublisher.FilePartSpec.from((Path) value));
             } else if (value instanceof File) {
-                addResourceToPublisher.accept(Resource.of((File) value));
-            } else if (value instanceof Resource) {
-                addResourceToPublisher.accept((Resource) value);
+                publisher.addPart(name, MultiPartBodyPublisher.FilePartSpec.from((File) value));
+            } else if (value instanceof Supplier<?>) {
+                publisher.addPart(name, toFilePartSpec(name, (Supplier<?>) value));
             } else {
                 publisher.addPart(name, String.valueOf(value));
             }
@@ -106,6 +97,32 @@ public class Telex {
                 .header("Content-Type", "multipart/form-data")
                 .POST(publisher.build())
                 .build();
+    }
+
+    /**
+     * Convert input stream supplier to file part
+     *
+     * @param name     form item name
+     * @param supplier input stream supplier
+     * @return file part
+     */
+    private static MultiPartBodyPublisher.FilePartSpec toFilePartSpec(String name, Supplier<?> supplier) {
+        return new MultiPartBodyPublisher.FilePartSpec() {
+
+            @Override
+            public String getFilename() {
+                return name;
+            }
+
+            @Override
+            public InputStream getInputStream() {
+                Object o = supplier.get();
+                if (!(o instanceof InputStream)) {
+                    throw new IllegalStateException("Supplier must supplies inputStream");
+                }
+                return (InputStream) o;
+            }
+        };
     }
 
     /**
@@ -124,71 +141,5 @@ public class Telex {
     public @NotNull String getFileUrl(@NotNull String filePath) {
         Objects.requireNonNull(filePath, "filePath must be not null");
         return String.format(TELEGRAM_FILE_API, this.token, filePath);
-    }
-
-    /**
-     * File resource
-     */
-    public interface Resource {
-
-        InputStream getInputStream();
-
-        @Nullable
-        default String getFilename() {
-            return null;
-        }
-
-        @Nullable
-        default String getContentType() {
-            return "application/octet-stream";
-        }
-
-        static Resource of(Path path) {
-            Objects.requireNonNull(path, "path must be not null");
-            return new Resource() {
-                @Override
-                public InputStream getInputStream() {
-                    try {
-                        return Files.newInputStream(path);
-                    } catch (IOException ex) {
-                        throw new UncheckedIOException(ex);
-                    }
-                }
-
-                @Override
-                public @Nullable String getFilename() {
-                    return path.getFileName().toString();
-                }
-
-                @Override
-                public @Nullable String getContentType() {
-                    try {
-                        return Files.probeContentType(path);
-                    } catch (IOException ex) {
-                        throw new UncheckedIOException(ex);
-                    }
-                }
-            };
-        }
-
-        static Resource of(@NotNull File file) {
-            Objects.requireNonNull(file, "file must be not null");
-            return of(file.toPath());
-        }
-
-        static Resource of(@NotNull InputStream inputStream) {
-            Objects.requireNonNull(inputStream, "inputStream must be not null");
-            return new Resource() {
-                @Override
-                public InputStream getInputStream() {
-                    return inputStream;
-                }
-
-                @Override
-                public String getFilename() {
-                    return "";
-                }
-            };
-        }
     }
 }
