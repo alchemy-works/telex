@@ -1,5 +1,7 @@
 # Telex
 
+[![Release](https://jitpack.io/v/cbdyzj/telex.svg)](https://jitpack.io/#cbdyzj/telex)
+
 Simple Telegram API wrapper
 
 - [Telegram Bot API](https://core.telegram.org/bots/api)
