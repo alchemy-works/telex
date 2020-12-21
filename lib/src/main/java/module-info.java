@@ -4,4 +4,5 @@ module telegram.telex {
     requires java.net.http;
 
     exports telex;
+    exports telex.support;
 }

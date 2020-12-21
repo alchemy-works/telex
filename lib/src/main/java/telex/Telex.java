@@ -19,6 +19,8 @@ import java.util.function.Supplier;
 
 /**
  * Simple Telegram API wrapper
+ *
+ * @see <a href="https://core.telegram.org/bots/api">Telegram Bot API</a>
  */
 public class Telex {
 
@@ -50,17 +52,14 @@ public class Telex {
         this.httpClient = httpClient;
     }
 
-    public @NotNull CompletableFuture<String> sendAsync(@NotNull String method, @NotNull Map<String, ?> payload) {
-        Objects.requireNonNull(payload, "payload must be not null");
+    public @NotNull CompletableFuture<String> callAsync(@NotNull String method, @NotNull Map<String, ?> payload) {
         var endpoint = this.getEndpoint(method);
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(endpoint))
-                .build();
+        var request = createRequest(endpoint, payload);
         return this.httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenApply(HttpResponse::body);
     }
 
-    public @NotNull String send(@NotNull String method, @NotNull Map<String, ?> payload) {
+    public @NotNull String call(@NotNull String method, @NotNull Map<String, ?> payload) {
         var endpoint = this.getEndpoint(method);
         var request = createRequest(endpoint, payload);
         try {
@@ -79,6 +78,20 @@ public class Telex {
      * @return Request
      */
     public static HttpRequest createRequest(@NotNull String endpoint, @NotNull Map<String, ?> payload) {
+        return HttpRequest.newBuilder()
+                .uri(URI.create(endpoint))
+                .header("Content-Type", "multipart/form-data")
+                .POST(toBodyPublisher(payload))
+                .build();
+    }
+
+    /**
+     * Build BodyPublisher from payload
+     *
+     * @param payload payload
+     * @return BodyPublisher
+     */
+    public static HttpRequest.BodyPublisher toBodyPublisher(@NotNull Map<String, ?> payload) {
         Objects.requireNonNull(payload, "payload must be not null");
         var publisher = new MultiPartBodyPublisher();
         payload.forEach((name, value) -> {
@@ -88,15 +101,13 @@ public class Telex {
                 publisher.addPart(name, MultiPartBodyPublisher.FilePartSpec.from((File) value));
             } else if (value instanceof Supplier<?>) {
                 publisher.addPart(name, toFilePartSpec(name, (Supplier<?>) value));
+            } else if (value instanceof MultiPartBodyPublisher.FilePartSpec) {
+                publisher.addPart(name, (MultiPartBodyPublisher.FilePartSpec) value);
             } else {
                 publisher.addPart(name, String.valueOf(value));
             }
         });
-        return HttpRequest.newBuilder()
-                .uri(URI.create(endpoint))
-                .header("Content-Type", "multipart/form-data")
-                .POST(publisher.build())
-                .build();
+        return publisher.build();
     }
 
     /**
